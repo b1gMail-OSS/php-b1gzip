@@ -11,8 +11,9 @@ This branch contains a PHP 8 API port. It has not been built or runtime-tested i
 - PHP 8 development headers, `phpize`, and the matching `php-config` (usually provided by the PHP development package)
 - `g++`, `make`, and standard build tools
 - Artpol ZipArchive C++ headers (`ZipArchive.h`)
+- The C++ runtime library (`libstdc++` on typical Linux systems)
 
-Extract the Artpol ZipArchive archive first. `ZipArchive.h` must be in the extracted directory you pass to `--with-b1gzip=DIR`. The build configuration intentionally does not add `-lziparch`. Ensure any required Artpol implementation is available to the final extension through your local build/link setup.
+Extract the Artpol ZipArchive archive first. `ZipArchive.h` must be in the extracted directory you pass to `--with-b1gzip=DIR`. The build configuration intentionally does not add `-lziparch`; it does explicitly link the C++ runtime with `-lstdc++`.
 
 ## Build with phpize and g++
 
@@ -36,7 +37,7 @@ make -j"$(nproc)" CXX=g++
 sudo make install
 ```
 
-If `phpize` has already been run for another PHP version, clean the generated build files (`phpize --clean`) before regenerating them with the desired version.
+If `phpize` has already been run for another PHP version, clean the generated build files (`phpize --clean`) before regenerating them with the desired version. To verify the C++ runtime is a dynamic dependency of the built module on Linux, run `ldd -r modules/b1gzip.so`; it should not report an undefined `_ZSt7nothrow` symbol.
 
 Enable the installed extension in the configuration for that same PHP installation:
 

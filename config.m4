@@ -15,5 +15,9 @@ if test "$PHP_B1GZIP" != "no"; then
     AC_CHECK_HEADER([ZipArchive.h], [], [AC_MSG_ERROR([ZipArchive.h was not found on the include path; pass --with-b1gzip=DIR where DIR contains ZipArchive.h])])
   fi
 
+  dnl The extension uses C++ symbols (including std::nothrow). Explicitly
+  dnl link the C++ standard library so the PHP loader can resolve them.
+  PHP_ADD_LIBRARY([stdc++], [1], [B1GZIP_SHARED_LIBADD])
+  PHP_SUBST([B1GZIP_SHARED_LIBADD])
   PHP_NEW_EXTENSION([b1gzip], [src/b1gzip.cpp], [$ext_shared],, [-DZEND_ENABLE_STATIC_TSRMLS_CACHE=1])
 fi
