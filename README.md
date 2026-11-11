@@ -10,14 +10,14 @@ This branch contains a PHP 8 API port. It has not been built or runtime-tested i
 
 - PHP 8 development headers, `phpize`, and the matching `php-config` (usually provided by the PHP development package)
 - `g++`, `make`, and standard build tools
-- Artpol ZipArchive C++ headers (`ZipArchive.h`)
+- Artpol ZipArchive headers and C++ source files from the extracted archive (`ZipArchive.h` plus the corresponding `.cpp` implementation files)
 - The C++ runtime library (`libstdc++` on typical Linux systems)
 
-Extract the Artpol ZipArchive archive first. `ZipArchive.h` must be in the extracted directory you pass to `--with-b1gzip=DIR`. The build configuration intentionally does not add `-lziparch`; it does explicitly link the C++ runtime with `-lstdc++`.
+The crucial point is that `ZipArchive.h` alone is not enough. The implementation classes `CZipArchive` and `CZipMemFile` must be compiled together with the PHP extension; otherwise the final `.so` will contain undefined vtable symbols such as `_ZTV11CZipMemFile`.
 
 ## Build with phpize and g++
 
-Use the `phpize` and `php-config` belonging to the PHP version that will load the extension. Example for PHP 8.2, with `ZipArchive.h` in `/opt/ZipArchive`:
+Extract the Artpol ZipArchive package first. The directory you pass to `--with-b1gzip=DIR` must contain `ZipArchive.h` and the corresponding C++ implementation files. Example for PHP 8.2:
 
 ```sh
 phpize8.2
@@ -26,9 +26,9 @@ make -j"$(nproc)" CXX=g++
 sudo make install
 ```
 
-Replace `8.2` with the installed PHP 8 minor version and `/opt/ZipArchive` with the extracted ZipArchive directory containing `ZipArchive.h`.
+This configuration compiles both `src/b1gzip.cpp` and all `.cpp` files from the extracted ZipArchive directory into the extension.
 
-If `ZipArchive.h` is in a standard system include path:
+If `ZipArchive.h` is in a standard system include path, you can also use:
 
 ```sh
 phpize
@@ -37,7 +37,7 @@ make -j"$(nproc)" CXX=g++
 sudo make install
 ```
 
-If `phpize` has already been run for another PHP version, clean the generated build files (`phpize --clean`) before regenerating them with the desired version. To verify the C++ runtime is a dynamic dependency of the built module on Linux, run `ldd -r modules/b1gzip.so`; it should not report an undefined `_ZSt7nothrow` symbol.
+If `phpize` has already been run for another PHP version, clean the generated build files (`phpize --clean`) before regenerating them with the desired version.
 
 Enable the installed extension in the configuration for that same PHP installation:
 
