@@ -9,28 +9,36 @@ This branch contains a PHP 8 API port. It has not been built or runtime-tested i
 ## Requirements
 
 - PHP 8 development headers, `phpize`, and the matching `php-config` (usually provided by the PHP development package)
-- A C++ compiler and standard build tools (`make`, `autoconf`, etc.)
+- `g++`, `make`, and standard build tools
 - Artpol ZipArchive C++ headers and library (`ZipArchive.h` and `libziparch`)
 
-The `--with-b1gzip=DIR` option expects the dependency installed under `DIR/include` and `DIR/lib`. If it is installed in standard system paths, use `--with-b1gzip` instead.
+Extract the Artpol ZipArchive archive first. `ZipArchive.h` must be in the extracted directory you pass to `--with-b1gzip=DIR`. The linker expects the `ziparch` library in that directory; if the library is elsewhere, add its path to `LDFLAGS` (see below).
 
-## Build with phpize
+## Build with phpize and g++
 
-Use the `phpize` and `php-config` belonging to the PHP version that will load the extension. For example, on systems that provide versioned commands:
+Use the `phpize` and `php-config` belonging to the PHP version that will load the extension. Example for PHP 8.2, with `ZipArchive.h` and `libziparch` in `/opt/ZipArchive`:
 
 ```sh
 phpize8.2
-./configure --with-php-config=/usr/bin/php-config8.2 --with-b1gzip=/opt/ziparchive
-make -j"$(nproc)"
+CXX=g++ ./configure --with-php-config=/usr/bin/php-config8.2 --with-b1gzip=/opt/ZipArchive
+make -j"$(nproc)" CXX=g++
 sudo make install
 ```
 
-Replace `8.2` with the installed PHP 8 minor version and `/opt/ziparchive` with the Artpol library prefix. If the dependency is in system include and library paths:
+Replace `8.2` with the installed PHP 8 minor version and `/opt/ZipArchive` with the extracted ZipArchive directory containing `ZipArchive.h`. If `libziparch` is in a separate directory, provide its path, for example:
+
+```sh
+LDFLAGS="-L/opt/ZipArchive/lib" CXX=g++ ./configure --with-php-config=/usr/bin/php-config8.2 --with-b1gzip=/opt/ZipArchive
+make -j"$(nproc)" CXX=g++
+sudo make install
+```
+
+For dependencies installed in standard system paths:
 
 ```sh
 phpize
-./configure --with-php-config="$(command -v php-config)" --with-b1gzip
-make -j"$(nproc)"
+CXX=g++ ./configure --with-php-config="$(command -v php-config)" --with-b1gzip
+make -j"$(nproc)" CXX=g++
 sudo make install
 ```
 
@@ -48,7 +56,7 @@ Then check that PHP loads it:
 php --ri b1gzip
 ```
 
-For PHP-FPM, enable it in the FPM configuration and restart the corresponding FPM service. If the Artpol shared library is installed outside the system library paths, configure the dynamic linker (for example with `ldconfig`) or set the appropriate runtime library path so PHP can locate `libziparch`.
+For PHP-FPM, enable it in the FPM configuration and restart the corresponding FPM service. If the Artpol shared library is outside the system library paths, configure the dynamic linker (for example with `ldconfig`) or set the appropriate runtime library path so PHP can locate `libziparch`.
 
 ## Example
 
