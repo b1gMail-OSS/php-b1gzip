@@ -10,13 +10,13 @@ This branch contains a PHP 8 API port. It has not been built or runtime-tested i
 
 - PHP 8 development headers, `phpize`, and the matching `php-config` (usually provided by the PHP development package)
 - `g++`, `make`, and standard build tools
-- Artpol ZipArchive C++ headers and library (`ZipArchive.h` and `libziparch`)
+- Artpol ZipArchive C++ headers (`ZipArchive.h`)
 
-Extract the Artpol ZipArchive archive first. `ZipArchive.h` must be in the extracted directory you pass to `--with-b1gzip=DIR`. The linker expects the `ziparch` library in that directory; if the library is elsewhere, add its path to `LDFLAGS` (see below).
+Extract the Artpol ZipArchive archive first. `ZipArchive.h` must be in the extracted directory you pass to `--with-b1gzip=DIR`. The build configuration intentionally does not add `-lziparch`. Ensure any required Artpol implementation is available to the final extension through your local build/link setup.
 
 ## Build with phpize and g++
 
-Use the `phpize` and `php-config` belonging to the PHP version that will load the extension. Example for PHP 8.2, with `ZipArchive.h` and `libziparch` in `/opt/ZipArchive`:
+Use the `phpize` and `php-config` belonging to the PHP version that will load the extension. Example for PHP 8.2, with `ZipArchive.h` in `/opt/ZipArchive`:
 
 ```sh
 phpize8.2
@@ -25,15 +25,9 @@ make -j"$(nproc)" CXX=g++
 sudo make install
 ```
 
-Replace `8.2` with the installed PHP 8 minor version and `/opt/ZipArchive` with the extracted ZipArchive directory containing `ZipArchive.h`. If `libziparch` is in a separate directory, provide its path, for example:
+Replace `8.2` with the installed PHP 8 minor version and `/opt/ZipArchive` with the extracted ZipArchive directory containing `ZipArchive.h`.
 
-```sh
-LDFLAGS="-L/opt/ZipArchive/lib" CXX=g++ ./configure --with-php-config=/usr/bin/php-config8.2 --with-b1gzip=/opt/ZipArchive
-make -j"$(nproc)" CXX=g++
-sudo make install
-```
-
-For dependencies installed in standard system paths:
+If `ZipArchive.h` is in a standard system include path:
 
 ```sh
 phpize
@@ -56,7 +50,7 @@ Then check that PHP loads it:
 php --ri b1gzip
 ```
 
-For PHP-FPM, enable it in the FPM configuration and restart the corresponding FPM service. If the Artpol shared library is outside the system library paths, configure the dynamic linker (for example with `ldconfig`) or set the appropriate runtime library path so PHP can locate `libziparch`.
+For PHP-FPM, enable it in the FPM configuration and restart the corresponding FPM service. If the Artpol implementation has runtime shared-library dependencies, make sure the dynamic linker can locate those libraries.
 
 ## Example
 
