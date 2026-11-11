@@ -1,20 +1,7 @@
 /*
   +----------------------------------------------------------------------+
-  | PHP Version 7                                                        |
+  | PHP extension header for b1gZIP                                      |
   +----------------------------------------------------------------------+
-  | Copyright (c) 1997-2022 The PHP Group                                |
-  +----------------------------------------------------------------------+
-  | This source file is subject to version 2.02 of the PHP license,      |
-  | that is bundled with this package in the file LICENSE, and is        |
-  | available at through the world-wide-web at                           |
-  | http://www.php.net/license/2_02.txt.                                 |
-  | If you did not receive a copy of the PHP license and are unable to   |
-  | obtain it through the world-wide-web, please send a note to          |
-  | license@php.net so we can mail you a copy immediately.               |
-  +----------------------------------------------------------------------+
-  | Author: B1G Software (info@b1g.de)                                   |
-  +----------------------------------------------------------------------+
-
 */
 
 #ifndef PHP_B1GZIP_H
@@ -35,34 +22,8 @@ PHP_RINIT_FUNCTION(b1gzip);
 PHP_RSHUTDOWN_FUNCTION(b1gzip);
 PHP_MINFO_FUNCTION(b1gzip);
 
-//#PHP_FUNCTION(confirm_b1gzip_compiled);       /* For testing, remove later. */
 PHP_FUNCTION(b1gzip_create);
 PHP_FUNCTION(b1gzip_add);
 PHP_FUNCTION(b1gzip_final);
 
-/* In every utility function you add that needs to use variables
-   in php_b1gzip_globals, call TSRM_FETCH(); after declaring other
-   variables used by that function, or better yet, pass in TSRMLS_CC
-   after the last function argument and declare your utility function
-   with TSRMLS_DC after the last declared argument.  Always refer to
-   the globals in your function as B1GZIP_G(variable).  You are
-   encouraged to rename these macros something shorter, see
-   examples in any other php module directory.
-*/
-
-#ifdef ZTS
-#define B1GZIP_G(v) TSRMG(b1gzip_globals_id, zend_b1gzip_globals *, v)
-#else
-#define B1GZIP_G(v) (b1gzip_globals.v)
-#endif
-
-#endif  /* PHP_B1GZIP_H */
-
-
-/*
- * Local variables:
- * tab-width: 4
- * c-basic-offset: 4
- * indent-tabs-mode: t
- * End:
- */
+#endif /* PHP_B1GZIP_H */

@@ -1,20 +1,7 @@
 /*
   +----------------------------------------------------------------------+
-  | PHP Version 7                                                        |
+  | b1gZIP PHP 8 extension                                              |
   +----------------------------------------------------------------------+
-  | Copyright (c) 1997-2022 The PHP Group                                |
-  +----------------------------------------------------------------------+
-  | This source file is subject to version 2.02 of the PHP license,      |
-  | that is bundled with this package in the file LICENSE, and is        |
-  | available at through the world-wide-web at                           |
-  | http://www.php.net/license/2_02.txt.                                 |
-  | If you did not receive a copy of the PHP license and are unable to   |
-  | obtain it through the world-wide-web, please send a note to          |
-  | license@php.net so we can mail you a copy immediately.               |
-  +----------------------------------------------------------------------+
-  | Author: B1G Software (info@b1g.de)                                   |
-  +----------------------------------------------------------------------+
-
 */
 
 #ifdef HAVE_CONFIG_H
@@ -22,149 +9,206 @@
 #endif
 
 extern "C" {
-        #include "php.h"
-        #include "php_ini.h"
-        #include "ext/standard/info.h"
+#include "php.h"
+#include "php_ini.h"
+#include "ext/standard/info.h"
 }
 
 #include "php_b1gzip.h"
 #include <ZipArchive.h>
+#include <exception>
+#include <new>
 
-
-/* True global resources - no need for thread safety here */
 static int le_b1gzip;
 
 struct zip_res {
-        CZipArchive zip;
-        CZipMemFile out;
+    CZipArchive zip;
+    CZipMemFile out;
+    bool opened;
+    bool finalized;
+
+    zip_res() : opened(false), finalized(false) {}
 };
 
-/* {{{ b1gzip_functions[]
- *
- * Every user visible function must have an entry in b1gzip_functions[].
- */
-zend_function_entry b1gzip_functions[] = {
-        PHP_FE(b1gzip_create, NULL)
-        PHP_FE(b1gzip_add, NULL)
-        PHP_FE(b1gzip_final, NULL)
-//PHP_FE(confirm_b1gzip_compiled,       NULL)           /* For testing, remove later. */
-        {NULL, NULL, NULL}      /* Must be the last line in b1gzip_functions[] */
+ZEND_BEGIN_ARG_INFO_EX(arginfo_b1gzip_create, 0, 0, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_b1gzip_add, 0, 0, 3)
+    ZEND_ARG_INFO(0, resource)
+    ZEND_ARG_INFO(0, data)
+    ZEND_ARG_INFO(0, filename)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_b1gzip_final, 0, 0, 1)
+    ZEND_ARG_INFO(0, resource)
+ZEND_END_ARG_INFO()
+
+static const zend_function_entry b1gzip_functions[] = {
+    PHP_FE(b1gzip_create, arginfo_b1gzip_create)
+    PHP_FE(b1gzip_add, arginfo_b1gzip_add)
+    PHP_FE(b1gzip_final, arginfo_b1gzip_final)
+    PHP_FE_END
 };
 
 zend_module_entry b1gzip_module_entry = {
-#if ZEND_MODULE_API_NO >= 20010901
-        STANDARD_MODULE_HEADER,
-#endif
-        "b1gzip",
-        b1gzip_functions,
-        PHP_MINIT(b1gzip),
-        PHP_MSHUTDOWN(b1gzip),
-        PHP_RINIT(b1gzip),              /* Replace with NULL if there's nothing to do at request start */
-        PHP_RSHUTDOWN(b1gzip),  /* Replace with NULL if there's nothing to do at request end */
-        PHP_MINFO(b1gzip),
-#if ZEND_MODULE_API_NO >= 20010901
-        "0.1", /* Replace with version number for your extension */
-#endif
-        STANDARD_MODULE_PROPERTIES
+    STANDARD_MODULE_HEADER,
+    "b1gzip",
+    b1gzip_functions,
+    PHP_MINIT(b1gzip),
+    PHP_MSHUTDOWN(b1gzip),
+    PHP_RINIT(b1gzip),
+    PHP_RSHUTDOWN(b1gzip),
+    PHP_MINFO(b1gzip),
+    "0.2.0",
+    STANDARD_MODULE_PROPERTIES
 };
 
- /* }}} */
-
 #ifdef COMPILE_DL_B1GZIP
-BEGIN_EXTERN_C()
+extern "C" {
 ZEND_GET_MODULE(b1gzip)
-END_EXTERN_C()
+}
 #endif
-
-static CZipArchive zip;
-static CZipMemFile out;
 
 static void zip_res_dtor(zend_resource *rsrc)
 {
+    zip_res *handle = static_cast<zip_res *>(rsrc->ptr);
+    if (handle == NULL) {
+        return;
+    }
 
+    // Destructors must not allow C++ exceptions to escape into the Zend Engine.
+    if (handle->opened && !handle->finalized) {
+        try {
+            handle->zip.Close();
+        } catch (...) {
+            /* There is no safe recovery path during resource destruction. */
+        }
+    }
+    delete handle;
 }
 
 PHP_MINIT_FUNCTION(b1gzip)
 {
-        le_b1gzip = zend_register_list_destructors_ex(zip_res_dtor, NULL, "zip res", module_number);
-
-        return SUCCESS;
+    le_b1gzip = zend_register_list_destructors_ex(zip_res_dtor, NULL, "b1gzip resource", module_number);
+    return SUCCESS;
 }
 
 PHP_MSHUTDOWN_FUNCTION(b1gzip)
 {
-        return SUCCESS;
+    return SUCCESS;
 }
 
 PHP_RINIT_FUNCTION(b1gzip)
 {
-        return SUCCESS;
+#if defined(ZTS) && defined(COMPILE_DL_B1GZIP)
+    ZEND_TSRMLS_CACHE_UPDATE();
+#endif
+    return SUCCESS;
 }
 
-/* Remove if there's nothing to do at request end */
 PHP_RSHUTDOWN_FUNCTION(b1gzip)
 {
-        return SUCCESS;
+    return SUCCESS;
 }
 
 PHP_MINFO_FUNCTION(b1gzip)
 {
-        php_info_print_table_start();
-        php_info_print_table_header(2, "b1gzip support", "enabled");
-		php_info_print_table_row(2, "version", "0.1");
-        php_info_print_table_end();
-}
-
-PHP_FUNCTION(b1gzip_add)
-{
-        char *arg = NULL;
-        char *fn = NULL;
-        size_t arg_len, fn_len;
-        CZipMemFile newfile;
-        zval *rid = NULL;
-
-        zip_res *handle = NULL;
-
-        if (zend_parse_parameters(ZEND_NUM_ARGS(), "rss", &rid, &arg, &arg_len, &fn, &fn_len) == FAILURE) {
-                return;
-        }
-
-        handle = (zip_res*)zend_fetch_resource(Z_RES_P(rid), "zip res", le_b1gzip);
-        newfile.Attach((BYTE *)arg, arg_len);
-        handle->zip.AddNewFile(newfile, fn);
-}
-
-PHP_FUNCTION(b1gzip_final)
-{
-        size_t zip_len = 0;
-        zip_res *handle = NULL;
-        zval *rid;
-
-		if (zend_parse_parameters(ZEND_NUM_ARGS(), "r", &rid) == FAILURE)   {
-			return;
-		}
-        handle = (zip_res*)zend_fetch_resource(Z_RES_P(rid), "zip res", le_b1gzip);
-        handle->zip.Close();
-        zip_len = handle->out.GetLength();
-
-        zend_list_delete(Z_RES_P(rid));
-
-        RETURN_STRINGL((char *)handle->out.Detach(), zip_len);
+    php_info_print_table_start();
+    php_info_print_table_header(2, "b1gzip support", "enabled");
+    php_info_print_table_row(2, "version", "0.2.0");
+    php_info_print_table_end();
 }
 
 PHP_FUNCTION(b1gzip_create)
 {
-        zip_res *handle = new zip_res;
+    zip_res *handle = NULL;
+
+    try {
+        handle = new (std::nothrow) zip_res;
+        if (handle == NULL) {
+            zend_throw_error(NULL, "Unable to allocate b1gzip resource");
+            return;
+        }
+
         handle->zip.Open(handle->out, CZipArchive::zipCreate);
+        handle->opened = true;
         RETURN_RES(zend_register_resource(handle, le_b1gzip));
+    } catch (const std::exception &exception) {
+        delete handle;
+        zend_throw_error(NULL, "Unable to create b1gzip archive: %s", exception.what());
+    } catch (...) {
+        delete handle;
+        zend_throw_error(NULL, "Unable to create b1gzip archive");
+    }
 }
 
+PHP_FUNCTION(b1gzip_add)
+{
+    zval *resource = NULL;
+    zend_string *data = NULL;
+    zend_string *filename = NULL;
+    zip_res *handle = NULL;
 
-/*
- * Local variables:
- * tab-width: 4
- * c-basic-offset: 4
- * End:
- * vim600: noet sw=4 ts=4 fdm=marker
- * vim<600: noet sw=4 ts=4
- */
+    if (zend_parse_parameters(ZEND_NUM_ARGS(), "rSS", &resource, &data, &filename) == FAILURE) {
+        return;
+    }
+
+    handle = static_cast<zip_res *>(zend_fetch_resource(Z_RES_P(resource), "b1gzip resource", le_b1gzip));
+    if (handle == NULL) {
+        zend_throw_error(NULL, "Invalid or closed b1gzip resource");
+        return;
+    }
+    if (handle->finalized) {
+        zend_throw_error(NULL, "Cannot add files to a finalized b1gzip archive");
+        return;
+    }
+
+    try {
+        CZipMemFile newfile;
+        newfile.Attach(reinterpret_cast<BYTE *>(ZSTR_VAL(data)), ZSTR_LEN(data));
+        handle->zip.AddNewFile(newfile, ZSTR_VAL(filename));
+    } catch (const std::exception &exception) {
+        zend_throw_error(NULL, "Unable to add file to b1gzip archive: %s", exception.what());
+    } catch (...) {
+        zend_throw_error(NULL, "Unable to add file to b1gzip archive");
+    }
+}
+
+PHP_FUNCTION(b1gzip_final)
+{
+    zval *resource = NULL;
+    zip_res *handle = NULL;
+    size_t zip_len = 0;
+    char *zip_data = NULL;
+
+    if (zend_parse_parameters(ZEND_NUM_ARGS(), "r", &resource) == FAILURE) {
+        return;
+    }
+
+    handle = static_cast<zip_res *>(zend_fetch_resource(Z_RES_P(resource), "b1gzip resource", le_b1gzip));
+    if (handle == NULL) {
+        zend_throw_error(NULL, "Invalid or closed b1gzip resource");
+        return;
+    }
+    if (handle->finalized) {
+        zend_throw_error(NULL, "b1gzip archive has already been finalized");
+        return;
+    }
+
+    try {
+        handle->zip.Close();
+        handle->finalized = true;
+        zip_len = handle->out.GetLength();
+        zip_data = reinterpret_cast<char *>(handle->out.Detach());
+    } catch (const std::exception &exception) {
+        zend_throw_error(NULL, "Unable to finalize b1gzip archive: %s", exception.what());
+        return;
+    } catch (...) {
+        zend_throw_error(NULL, "Unable to finalize b1gzip archive");
+        return;
+    }
+
+    // RETURN_STRINGL copies the detached buffer into a PHP-managed string.
+    zend_list_delete(Z_RES_P(resource));
+    RETURN_STRINGL(zip_data, zip_len);
+}

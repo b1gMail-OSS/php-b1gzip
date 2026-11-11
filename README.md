@@ -1,13 +1,70 @@
 # b1gZIP
-b1gZIP is a module for PHP that allows extremely fast creation of ZIP archives. b1gZIP is based on the ZipArchive C++ library from Artpol Software and is completely free.
 
-# Supported PHP versions
-PHP version 7 or higher. For older php version look at git history 575ddfe
+b1gZIP is a PHP extension for creating ZIP archives, based on the ZipArchive C++ library from Artpol Software.
 
-# Compile
-Download the ZipArchive files from http://www.artpol-software.com/Download.aspx and compile this with the -fPIC -Option.
-After successfully build compile b1gzip with:
+## PHP compatibility
 
+This branch contains a PHP 8 API port. It has not been built or runtime-tested in this environment; successful use depends on compiling it against the PHP 8 development headers and a compatible Artpol ZipArchive library. Do not load a binary built for another PHP version.
+
+## Requirements
+
+- PHP 8 development headers, `phpize`, and the matching `php-config` (usually provided by the PHP development package)
+- A C++ compiler and standard build tools (`make`, `autoconf`, etc.)
+- Artpol ZipArchive C++ headers and library (`ZipArchive.h` and `libziparch`)
+
+The `--with-b1gzip=DIR` option expects the dependency installed under `DIR/include` and `DIR/lib`. If it is installed in standard system paths, use `--with-b1gzip` instead.
+
+## Build with phpize
+
+Use the `phpize` and `php-config` belonging to the PHP version that will load the extension. For example, on systems that provide versioned commands:
+
+```sh
+phpize8.2
+./configure --with-php-config=/usr/bin/php-config8.2 --with-b1gzip=/opt/ziparchive
+make -j"$(nproc)"
+sudo make install
 ```
-g++ -o b1gzip.so -I[PHP_INCLUDE_DIR] -I[PHP_INCLUDE_DIR]/main -I[PHP_INCLUDE_DIR]/Zend -I[PHP_INCLUDE_DIR]/TSRM -I[ZIPARCHIVE_INCLUDE_DIR] -g -O2 b1gzip.cpp -L[ZIPARCHIVE_LIBZIPARCH.A-DIR] -lziparch -shared -export-dynamic -fPIC -Wl,-rpath,-avoid-version -DZEND_DEBUG=0 -DCOMPILE_DL_B1GZIP
+
+Replace `8.2` with the installed PHP 8 minor version and `/opt/ziparchive` with the Artpol library prefix. If the dependency is in system include and library paths:
+
+```sh
+phpize
+./configure --with-php-config="$(command -v php-config)" --with-b1gzip
+make -j"$(nproc)"
+sudo make install
+```
+
+If `phpize` has already been run for another PHP version, clean the generated build files (`phpize --clean`) before regenerating them with the desired version.
+
+Enable the installed extension in the configuration for that same PHP installation:
+
+```ini
+extension=b1gzip.so
+```
+
+Then check that PHP loads it:
+
+```sh
+php --ri b1gzip
+```
+
+For PHP-FPM, enable it in the FPM configuration and restart the corresponding FPM service. If the Artpol shared library is installed outside the system library paths, configure the dynamic linker (for example with `ldconfig`) or set the appropriate runtime library path so PHP can locate `libziparch`.
+
+## Example
+
+```php
+<?php
+if (!function_exists('b1gzip_create')) {
+    die('b1gZIP is not installed');
+}
+
+$archive = b1gzip_create();
+b1gzip_add($archive, 'This is a test!', 'test.txt');
+b1gzip_add($archive, 'Another test!', 'demo/demo.txt');
+$zip = b1gzip_final($archive);
+
+header('Content-Type: application/zip');
+header('Content-Disposition: attachment; filename="test.zip"');
+header('Content-Length: ' . strlen($zip));
+echo $zip;
 ```
