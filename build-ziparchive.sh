@@ -50,12 +50,20 @@ if [ ! -d "$SEARCH_DIR" ]; then
     exit 1
 fi
 
-CMAKE_FILE=$(find "$SEARCH_DIR" -type f -name CMakeLists.txt -print -quit)
-if [ -z "$CMAKE_FILE" ]; then
-    echo "No CMakeLists.txt found under $SEARCH_DIR" >&2
-    exit 1
+# The Artpol archive has a top-level CMake project which sets ZIP_VERSION
+# and adds the actual ZipArchive library subdirectory. Configure that project,
+# not the nested ZipArchive/CMakeLists.txt (which expects PROJECT_VERSION).
+if [ -f "$SEARCH_DIR/CMakeLists.txt" ]; then
+    SOURCE_ROOT=$SEARCH_DIR
+else
+    CMAKE_FILE=$(find "$SEARCH_DIR" -type f -name CMakeLists.txt -print -quit)
+    if [ -z "$CMAKE_FILE" ]; then
+        echo "No CMakeLists.txt found under $SEARCH_DIR" >&2
+        exit 1
+    fi
+    SOURCE_ROOT=$(dirname "$CMAKE_FILE")
 fi
-SOURCE_ROOT=$(dirname "$CMAKE_FILE")
+
 HEADER=$(find "$SOURCE_ROOT" -type f -name ZipArchive.h -print -quit)
 if [ -z "$HEADER" ]; then
     echo "ZipArchive.h not found under $SOURCE_ROOT" >&2
