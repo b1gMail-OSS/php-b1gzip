@@ -50,9 +50,8 @@ if [ ! -d "$SEARCH_DIR" ]; then
     exit 1
 fi
 
-# The Artpol archive has a top-level CMake project which sets ZIP_VERSION
-# and adds the actual ZipArchive library subdirectory. Configure that project,
-# not the nested ZipArchive/CMakeLists.txt (which expects PROJECT_VERSION).
+# Prefer the archive's top-level CMake project. Its nested ZipArchive
+# CMakeLists.txt expects PROJECT_VERSION from the parent project.
 if [ -f "$SEARCH_DIR/CMakeLists.txt" ]; then
     SOURCE_ROOT=$SEARCH_DIR
 else
@@ -63,6 +62,7 @@ else
     fi
     SOURCE_ROOT=$(dirname "$CMAKE_FILE")
 fi
+SOURCE_ROOT=$(CDPATH= cd -- "$SOURCE_ROOT" && pwd -P)
 
 HEADER=$(find "$SOURCE_ROOT" -type f -name ZipArchive.h -print -quit)
 if [ -z "$HEADER" ]; then
@@ -71,6 +71,18 @@ if [ -z "$HEADER" ]; then
 fi
 INCLUDE_DIR=$(dirname "$HEADER")
 BUILD_DIR="$WORK_DIR/build"
+
+# CMake refuses to reuse a build tree when its source directory changes.
+# This can happen when an earlier configure selected the nested CMakeLists.txt
+# and a newer run correctly selects the top-level project. Discard only that
+# stale CMake build tree; keep the downloaded archive and extracted sources.
+if [ -f "$BUILD_DIR/CMakeCache.txt" ]; then
+    CACHED_SOURCE=$(sed -n 's/^CMAKE_HOME_DIRECTORY:INTERNAL=//p' "$BUILD_DIR/CMakeCache.txt" | head -n 1)
+    if [ -n "$CACHED_SOURCE" ] && [ "$CACHED_SOURCE" != "$SOURCE_ROOT" ]; then
+        echo "CMake source directory changed; removing stale build directory $BUILD_DIR"
+        rm -rf "$BUILD_DIR"
+    fi
+fi
 
 cmake -S "$SOURCE_ROOT" -B "$BUILD_DIR" \
     -DCMAKE_BUILD_TYPE=Release \

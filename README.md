@@ -14,9 +14,9 @@ This branch contains a PHP 8 API port. It has not been built or runtime-tested i
 
 ## Build
 
-Enabling the extension automatically downloads the Artpol source archive, extracts it directly into a working directory, configures the archive's **top-level** CMake project, builds its static library, and links it into b1gZIP. No separate ZipArchive build step is needed. The downloaded source and generated build files are kept under `.deps/b1gzip-ziparchive/`.
+Enabling the extension automatically downloads the Artpol source archive, extracts it into a working directory, configures the archive's top-level CMake project, builds its static library, and links it into b1gZIP. No separate ZipArchive build step is needed. The downloaded source and generated build files are kept under `.deps/b1gzip-ziparchive/`.
 
-The top-level `CMakeLists.txt` sets `ZIP_VERSION` and includes the nested `ZipArchive` project. The build helper deliberately configures this top-level file; configuring the nested `ZipArchive/CMakeLists.txt` directly can fail because it expects `PROJECT_VERSION` to be set by the parent project.
+The build helper prefers the top-level `CMakeLists.txt`; the nested `ZipArchive/CMakeLists.txt` expects `PROJECT_VERSION` from its parent. If the CMake source root changes between configure runs, the helper removes the stale CMake build directory and reconfigures it automatically.
 
 For PHP 8.2:
 
